@@ -379,9 +379,19 @@ document.getElementById("share").addEventListener("click",()=>{
 });
 
 // ===== init =====
+const FIXKEY={};GROUPS.forEach(g=>FIX[g].forEach((fx,i)=>FIXKEY[fx[0]+" v "+fx[1]]=g+"-"+i));
+function applyResults(d){
+  if(d&&d.groups)for(const k in d.groups){const idx=FIXKEY[k];
+    if(!idx){console.warn("results.json: unknown fixture \""+k+"\"");continue;}
+    const mm=String(d.groups[k]).match(/(\d+)\D+(\d+)/);if(mm)scores[idx]=[+mm[1],+mm[2]];}
+  if(d&&d.knockout)for(const m in d.knockout){if(TEAMS[d.knockout[m]])locks[+m]=d.knockout[m];}
+}
+function start(){buildEditor();renderGroups();renderKO();go();}
 defaults();
-if(location.hash.length>1)decode(location.hash.slice(1));
-buildEditor();renderGroups();renderKO();go();
+if(location.hash.length>1){decode(location.hash.slice(1));start();}
+else{
+  fetch("results.json",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(d=>{if(d)applyResults(d);}).catch(()=>{}).finally(start);
+}
 </script>
 </body>
 </html>
