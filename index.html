@@ -150,7 +150,7 @@
   <div class="champ" id="champ" style="display:none"></div>
 
   <footer>
-    <p><b>Method.</b> Per simulation, entered scores are used as-is and unplayed matches get Poisson scorelines from the Elo gap. Group tables resolve on points, goal difference, goals scored. The eight best third-placed teams are slotted into the official Round-of-32 positions (constraint-matched, valid across all 495 combinations). Knockout ties you've locked are forced; the rest are simulated. Odds are the share of simulations in which each outcome occurs.</p>
+    <p><b>Method.</b> Per simulation, entered scores are used as-is and unplayed matches get correlated scorelines from a Dixon-Coles adjusted Poisson model, with expected goals set by the Elo gap. Each simulation also re-draws every team's rating from a distribution around its Elo, so the model never pretends to know a team's strength exactly and the tails stay honest. Group tables resolve on points, goal difference, goals scored. The eight best third-placed teams are slotted into the official Round-of-32 positions (constraint-matched, valid across all 495 combinations). Knockout ties you've locked are forced; the rest are simulated. Odds are the share of simulations in which each outcome occurs.</p>
     <p style="margin-top:10px"><b>Notes.</b> Seed Elo is an editable approximate snapshot — refresh from <code>eloratings.net</code>. Real third-place and group tiebreakers add discipline and head-to-head, approximated here. Share links encode ratings, scores and locks in the URL.</p>
   </footer>
 </div>
@@ -203,10 +203,18 @@ let RATINGS={}, scores={}, locks={}, N=10000, LAST=[], sortK="title", sortDir=-1
 function defaults(){Object.keys(TEAMS).forEach(t=>RATINGS[t]=TEAMS[t].elo);scores={};locks={};}
 
 // ===== model =====
-const GDIV=250,BASE=2.6,HOST=50,MINL=0.18;
+const GDIV=250,BASE=2.6,HOST=50,MINL=0.18,RHO=-0.08,RSD=50,MAXG=6;
 function pois(l){const L=Math.exp(-l);let k=0,p=1;do{k++;p*=Math.random();}while(p>L);return k-1;}
 function lam(a,b){const gd=(a-b)/GDIV;return[Math.max(MINL,(BASE+gd)/2),Math.max(MINL,(BASE-gd)/2)];}
 function e1(a,b){return 1/(1+Math.pow(10,(b-a)/400));}
+function gaussian(){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function pmfPois(l,n){const a=[];let p=Math.exp(-l);for(let k=0;k<=n;k++){a.push(p);p=p*l/(k+1);}return a;}
+function adj(p,x,y,la,lb){if(x===0&&y===0)return p*(1-la*lb*RHO);if(x===0&&y===1)return p*(1+la*RHO);if(x===1&&y===0)return p*(1+lb*RHO);if(x===1&&y===1)return p*(1-RHO);return p;}
+function sampleDC(la,lb){const A=pmfPois(la,MAXG),B=pmfPois(lb,MAXG);
+  let tot=0;for(let x=0;x<=MAXG;x++)for(let y=0;y<=MAXG;y++)tot+=adj(A[x]*B[y],x,y,la,lb);
+  let r=Math.random()*tot;
+  for(let x=0;x<=MAXG;x++)for(let y=0;y<=MAXG;y++){r-=adj(A[x]*B[y],x,y,la,lb);if(r<=0)return[x,y];}
+  return[0,0];}
 function koWin(a,b,R,lock){if(lock&&(lock===a||lock===b))return lock;const[la,lb]=lam(R[a],R[b]);const ga=pois(la),gb=pois(lb);
   if(ga>gb)return a;if(gb>ga)return b;return Math.random()<e1(R[a],R[b])?a:b;}
 function assignThirds(qg){const slots=THIRD_SLOTS.map(m=>({m,allow:R32[m][1][1]})).sort((a,b)=>a.allow.length-b.allow.length);const used={},res={};
@@ -215,7 +223,7 @@ function assignThirds(qg){const slots=THIRD_SLOTS.map(m=>({m,allow:R32[m][1][1]}
 function simGroup(g,R){
   const ts=teamsOf(g),tab={};ts.forEach(t=>tab[t]={pts:0,gf:0,ga:0});
   FIX[g].forEach((fx,idx)=>{const[A,B]=fx;let ga,gb;const sc=scores[g+"-"+idx];
-    if(sc){ga=sc[0];gb=sc[1];}else{const ea=R[A]+(TEAMS[A].host?HOST:0),eb=R[B]+(TEAMS[B].host?HOST:0);const[la,lb]=lam(ea,eb);ga=pois(la);gb=pois(lb);}
+    if(sc){ga=sc[0];gb=sc[1];}else{const ea=R[A]+(TEAMS[A].host?HOST:0),eb=R[B]+(TEAMS[B].host?HOST:0);const[la,lb]=lam(ea,eb);const dc=sampleDC(la,lb);ga=dc[0];gb=dc[1];}
     tab[A].gf+=ga;tab[A].ga+=gb;tab[B].gf+=gb;tab[B].ga+=ga;
     if(ga>gb)tab[A].pts+=3;else if(gb>ga)tab[B].pts+=3;else{tab[A].pts++;tab[B].pts++;}});
   ts.forEach(t=>tab[t].gd=tab[t].gf-tab[t].ga);
@@ -223,8 +231,9 @@ function simGroup(g,R){
   return {rk,tab};
 }
 function simOne(R,T){
+  const rp={};for(const t in R)rp[t]=R[t]+gaussian()*RSD;
   const win={},run={},third={},thirds=[];
-  for(const g of GROUPS){const {rk,tab}=simGroup(g,R);
+  for(const g of GROUPS){const {rk,tab}=simGroup(g,rp);
     win[g]=rk[0];run[g]=rk[1];third[g]=rk[2];
     thirds.push({g,team:rk[2],pts:tab[rk[2]].pts,gd:tab[rk[2]].gd,gf:tab[rk[2]].gf});
     T[rk[0]].win++;T[rk[0]].out++;T[rk[1]].out++;}
@@ -234,10 +243,10 @@ function simOne(R,T){
   for(const m in R32){const[s1,s2]=R32[m];
     const a=s1[0]==="T"?third[sg[m]]:(s1[0]==="W"?win[s1[1]]:run[s1[1]]);
     const b=s2[0]==="T"?third[sg[m]]:(s2[0]==="W"?win[s2[1]]:run[s2[1]]);
-    res[m]=koWin(a,b,R,locks[m]);}
-  function rnd(def,key){for(const m in def){const[m1,m2]=def[m];const a=res[m1],b=res[m2];T[a][key]++;T[b][key]++;res[m]=koWin(a,b,R,locks[m]);}}
+    res[m]=koWin(a,b,rp,locks[m]);}
+  function rnd(def,key){for(const m in def){const[m1,m2]=def[m];const a=res[m1],b=res[m2];T[a][key]++;T[b][key]++;res[m]=koWin(a,b,rp,locks[m]);}}
   rnd(R16,"r16");rnd(QF,"qf");rnd(SF,"sf");
-  const fa=res[101],fb=res[102];T[fa].final++;T[fb].final++;T[koWin(fa,fb,R,locks[104])].title++;
+  const fa=res[101],fb=res[102];T[fa].final++;T[fb].final++;T[koWin(fa,fb,rp,locks[104])].title++;
 }
 
 // deterministic bracket once all groups entered
@@ -379,9 +388,11 @@ document.getElementById("share").addEventListener("click",()=>{
 });
 
 // ===== init =====
-const FIXKEY={};GROUPS.forEach(g=>FIX[g].forEach((fx,i)=>FIXKEY[fx[0]+" v "+fx[1]]=g+"-"+i));
+const FIXKEY={};
+function normKey(s){return String(s).toLowerCase().replace(/\s+vs?\s+/g," v ").replace(/\s+/g," ").trim();}
+GROUPS.forEach(g=>FIX[g].forEach((fx,i)=>FIXKEY[normKey(fx[0]+" v "+fx[1])]=g+"-"+i));
 function applyResults(d){
-  if(d&&d.groups)for(const k in d.groups){const idx=FIXKEY[k];
+  if(d&&d.groups)for(const k in d.groups){const idx=FIXKEY[normKey(k)];
     if(!idx){console.warn("results.json: unknown fixture \""+k+"\"");continue;}
     const mm=String(d.groups[k]).match(/(\d+)\D+(\d+)/);if(mm)scores[idx]=[+mm[1],+mm[2]];}
   if(d&&d.knockout)for(const m in d.knockout){if(TEAMS[d.knockout[m]])locks[+m]=d.knockout[m];}
