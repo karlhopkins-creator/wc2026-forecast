@@ -5,7 +5,7 @@
     "Canada v Bosnia-Herzegovina": "1-1",
     "USA v Paraguay": "4-1", 
     "Germany v Curacao": "7-1",
-    "Qatar v Switerzland": "1-1", 
+    "Qatar v Switzerland": "1-1", 
     "Haiti v Scotland": "0-1", 
     "Australia v Turkey": "2-0", 
     "Brazil v Morocco": "1-1", 
@@ -14,8 +14,16 @@
     "Ivory Coast v Ecuador": "1-0", 
     "Spain v Cape Verde": "0-0", 
     "Iran v New Zealand": "2-2", 
-    "Saudi Arabia v Uruguay": "1-1"
+    "Saudi Arabia v Uruguay": "1-1", 
+    "Argentina v Algeria!: "3-0", 
+    "France v Senegal": "3-1", 
+    "Iraq v Norway": "1-4", 
+    "Austria v Jordan": "3-1", 
+    "Belgium v Egypt": "1-1", 
+    "Portugal v DR Congo": "1-1", 
+    "England v Croatia": "4-2"
   },
+  
   "knockout": {
   }
 }
