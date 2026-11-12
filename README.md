@@ -2,12 +2,20 @@
 
 A single-page Monte Carlo model for the 2026 FIFA World Cup. Enter real results and every team's probability of advancing and winning updates live. It handles the 48-team format, including the eight best third-placed qualifiers and the official Round-of-32 slotting.
 
+Built by Karl Hopkins as a personal sports analytics project.
+
+## How the model works
+
+- **Inputs:** an Elo rating for each of the 48 teams (the `TEAMS` object near the top of the script in `index.html`), sourced from eloratings.net.
+- **Simulation:** every unplayed fixture is simulated from the two teams' rating gap, the full tournament is run many times, and each team's odds of reaching each round are the share of simulations in which it does.
+- **Live updating:** real results in `results.json` replace the simulated ones, so the odds tighten as the tournament progresses.
+
 ## Files
 
 - `index.html` — the app. Open it or host it.
 - `results.json` — the live results. Edit this as matches finish; the page reads it on load.
 
-## Updating results during the tournament
+## Updating results
 
 Edit `results.json` in GitHub (open the file, click the pencil, commit). GitHub Pages redeploys in about a minute and every visitor sees the new odds. No need to touch `index.html`.
 
@@ -165,7 +173,3 @@ Knockout fixtures aren't known until the groups finish, so these are keyed by ma
 ```
 
 Match numbers: R32 = M73–M88 · R16 = M89–M96 · Quarter-finals = M97–M100 · Semi-finals = M101–M102 · Final = M104. The app shows each tie's number, so read it off there.
-
-## Before launch
-
-Refresh the 48 Elo ratings inside `index.html` (the `TEAMS` object near the top of the script) from eloratings.net. Ratings are the input that drives the forecast.
